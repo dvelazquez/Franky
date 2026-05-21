@@ -1,0 +1,33 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Entornos virtuales
+venv/
+env/
+.venv/
+
+# Archivos de entorno
+.env
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de logs
+*.log
+
+# Archivos de pruebas/cobertura
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Configuración de IDEs
+.vscode/
+.idea/
+
+# Archivos de empaquetado
+build/
+dist/
+*.egg-info/
