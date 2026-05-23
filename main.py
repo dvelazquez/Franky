@@ -6,13 +6,14 @@ import sys
 import json
 import os
 import config_estaciones as ce
+import time
 from procesador_vla import ProcesadorVLA
 from procesador_vision import ProcesadorVision
 from controlador_robot import ControladorRobot  # Integración del nuevo módulo atómico
 
 def main():
     # Inicialización del backend de captura de video V4L2 en Linux
-    cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(1, cv2.CAP_V4L2)
     if not cap.isOpened():
         print("Error crítico: Interfaz V4L2 no disponible.", file=sys.stderr)
         sys.exit(1)
@@ -87,22 +88,39 @@ def main():
                 print(f"[VLA COGNITIVO] Acción Cinemática: {accion.upper()}")
                 
                 # Validación cruzada determinista con la configuración geométrica e interlocks
+# Validación cruzada determinista con la configuración geométrica e interlocks
                 if (accion in ["ejecutar_movimiento", "ejecutar_movement"]) and (destino in ce.POSICIONES_CELDA):
                     coords_origen = ce.POSICIONES_CELDA["Posicion_1"]["robot"]
                     coords_destino = ce.POSICIONES_CELDA[destino]["robot"]
                     
                     print(f"\n[CONTROL INTERLOCK] Trayectoria validada y autorizada.")
-                    print(f" -> PICK  (Origen Posicion_1) XYZ [mm]: {coords_origen}")
-                    print(f" -> PLACE (Destino {destino}) XYZ [mm]: {coords_destino}")
+                    print(f" -> PICK  (Origen Posicion_1) XYZ [mm]: {coords_origen} via P1")
+                    print(f" -> PLACE (Destino {destino}) XYZ [mm]: {coords_destino} via P2")
                     
                     # Ejecución física de la trayectoria síncrona mediante el driver serial
                     print("\n[EJECUCIÓN CINEMÁTICA] Despachando comandos físicos al hardware...")
-                    # 1. Desplazamiento síncrono al punto de recogida (PICK)
-                    success = robot_control.mover_a_coordenadas(coords_origen[0], coords_origen[1], coords_origen[2])
                     
-                    # 2. Si el PICK es exitoso, despachar al punto de descarga (PLACE)
+                    # 1. Almacenamiento geométrico y desplazamiento síncrono al punto de recogida (P1)
+                    success = robot_control.mover_a_coordenadas(
+                        coords_origen[0], coords_origen[1], coords_origen[2], 
+                        var_posicion="P1", 
+                        nombre_pos="Posicion_1"
+                    )
+                    
+                    # 2. Si el PICK es exitoso, descompresionar hardware y despachar al punto de descarga (P2)
                     if success:
-                        robot_control.mover_a_coordenadas(coords_destino[0], coords_destino[1], coords_destino[2])
+                        print("[MECATRÓNICA] Captura de origen confirmada. Estabilizando presión y servos...")
+                        
+                        # RETARDO CRÍTICO: Da un margen de 400ms para que el firmware del controlador Mitsubishi 
+                        # cierre el ciclo de control del primer movimiento y limpie sus registros antes de recibir el comando PLACE.
+                        time.sleep(0.4) 
+                        
+                        print("[MECATRÓNICA] Transicionando a vector de descarga...")
+                        robot_control.mover_a_coordenadas(
+                            coords_destino[0], coords_destino[1], coords_destino[2], 
+                            var_posicion="P2", 
+                            nombre_pos=destino
+                        )
                     else:
                         print("[MECATRÓNICA] Movimiento abortado por fallo de confirmación en el eslabón de origen.", file=sys.stderr)
                         
